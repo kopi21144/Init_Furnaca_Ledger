@@ -52,3 +52,57 @@ contract Init_Furnaca {
     IPriceOracleFeed public immutable baseOracle;
     IXSentimentFeed public immutable xSentimentFeed;
 
+    // Randomized governance and sentinel addresses (arbitrary, not tied to real keys)
+    address public immutable sentinelA;
+    address public immutable sentinelB;
+    address public immutable sentimentSafetyOracle;
+
+    // -------------------------------------------------------------------------
+    // Roles and permissions
+    // -------------------------------------------------------------------------
+
+    mapping(address => bool) public isStrategyCurator;
+    mapping(address => bool) public isExecutionRelayer;
+    mapping(address => bool) public isParameterGuardian;
+
+    // -------------------------------------------------------------------------
+    // Strategy registry
+    // -------------------------------------------------------------------------
+
+    struct StrategyConfig {
+        address owner;
+        address assetIn;
+        address assetOut;
+        address executor;
+        bytes32 primaryTopic;
+        bytes32 secondaryTopic;
+        uint16 minTrendScore;     // social score gating
+        uint16 maxTrendScore;     // upper band control
+        uint16 minOracleDriftBps; // price drift threshold
+        uint16 maxOracleDriftBps; // price drift clamp
+        uint16 baseFeeBps;        // protocol fee cut
+        uint16 curatorFeeBps;     // curator incentive cut
+        uint32 coolDownBlocks;    // trade cool-down
+        uint32 expiryBlock;       // optional sunset
+        uint48 createdAt;
+        bool paused;
+    }
+
+    struct StrategyRuntime {
+        uint256 lastExecutedAtBlock;
+        uint256 totalExecutions;
+        int256 lastRecordedSentiment;
+        int256 lastRecordedPrice;
+        uint256 cumulativeVolumeIn;
+        uint256 cumulativeVolumeOut;
+    }
+
+    mapping(bytes32 => StrategyConfig) public strategies;
+    mapping(bytes32 => StrategyRuntime) public strategyRuntime;
+    bytes32[] public strategyIds;
+
+    // -------------------------------------------------------------------------
+    // Events
+    // -------------------------------------------------------------------------
+
+    event StrategyRegistered(
