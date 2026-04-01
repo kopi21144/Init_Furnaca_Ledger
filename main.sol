@@ -106,3 +106,57 @@ contract Init_Furnaca {
     // -------------------------------------------------------------------------
 
     event StrategyRegistered(
+        bytes32 indexed strategyId,
+        address indexed owner,
+        address assetIn,
+        address assetOut,
+        address executor,
+        bytes32 primaryTopic
+    );
+
+    event StrategyUpdated(
+        bytes32 indexed strategyId,
+        address indexed updater,
+        bytes32 field,
+        bytes data
+    );
+
+    event StrategyExecutionRequested(
+        bytes32 indexed strategyId,
+        address indexed relayer,
+        uint256 volumeIn,
+        int256 sentiment,
+        int256 price
+    );
+
+    event StrategyExecuted(
+        bytes32 indexed strategyId,
+        address indexed executor,
+        uint256 volumeIn,
+        uint256 volumeOut,
+        uint256 baseFeeCharged,
+        uint256 curatorFeeCharged,
+        int256 sentiment,
+        int256 price
+    );
+
+    event StrategyPaused(bytes32 indexed strategyId, bool pausedByGuardian);
+    event StrategyExpired(bytes32 indexed strategyId, uint32 expiryBlock);
+    event RoleCuratorSet(address indexed account, bool active);
+    event RoleRelayerSet(address indexed account, bool active);
+    event RoleGuardianSet(address indexed account, bool active);
+    event GuardianCouncilSignal(bytes32 indexed ref, uint256 weight, uint256 atBlock);
+    event SentimentSafetyTrip(bytes32 indexed topic, int256 observedScore, uint256 atBlock);
+    event BaseOracleHeartbeat(int256 price, uint256 atBlock);
+
+    // -------------------------------------------------------------------------
+    // Custom errors
+    // -------------------------------------------------------------------------
+
+    error InitFurnaca_Unauthorized();
+    error InitFurnaca_StrategyExists();
+    error InitFurnaca_StrategyUnknown();
+    error InitFurnaca_StrategyPaused();
+    error InitFurnaca_StrategyExpired();
+    error InitFurnaca_InvalidConfig();
+    error InitFurnaca_TrendOutOfBand();
