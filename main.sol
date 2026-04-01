@@ -160,3 +160,111 @@ contract Init_Furnaca {
     error InitFurnaca_StrategyExpired();
     error InitFurnaca_InvalidConfig();
     error InitFurnaca_TrendOutOfBand();
+    error InitFurnaca_OracleDriftTooLow();
+    error InitFurnaca_OracleDriftTooHigh();
+    error InitFurnaca_TooSoonToExecute();
+    error InitFurnaca_AssetMismatch();
+    error InitFurnaca_ZeroAddress();
+    error InitFurnaca_InvalidFee();
+    error InitFurnaca_SafetyTrip();
+    error InitFurnaca_ArrayLengthMismatch();
+
+    // -------------------------------------------------------------------------
+    // Modifiers
+    // -------------------------------------------------------------------------
+
+    modifier onlyDeployer() {
+        if (msg.sender != deployer) revert InitFurnaca_Unauthorized();
+        _;
+    }
+
+    modifier onlyGuardian() {
+        if (!isParameterGuardian[msg.sender] && msg.sender != guardianCouncil) {
+            revert InitFurnaca_Unauthorized();
+        }
+        _;
+    }
+
+    modifier onlyCurator() {
+        if (!isStrategyCurator[msg.sender]) revert InitFurnaca_Unauthorized();
+        _;
+    }
+
+    modifier onlyRelayer() {
+        if (!isExecutionRelayer[msg.sender]) revert InitFurnaca_Unauthorized();
+        _;
+    }
+
+    modifier nonZero(address a) {
+        if (a == address(0)) revert InitFurnaca_ZeroAddress();
+        _;
+    }
+
+    // -------------------------------------------------------------------------
+    // Constructor
+    // -------------------------------------------------------------------------
+
+    constructor(
+        address _guardianCouncil,
+        address _feeCollector,
+        address _baseOracle,
+        address _xSentimentFeed,
+        address _sentinelA,
+        address _sentinelB,
+        address _sentimentSafetyOracle
+    )
+        nonZero(_guardianCouncil)
+        nonZero(_feeCollector)
+        nonZero(_baseOracle)
+        nonZero(_xSentimentFeed)
+        nonZero(_sentinelA)
+        nonZero(_sentinelB)
+        nonZero(_sentimentSafetyOracle)
+    {
+        deployer = msg.sender;
+
+        // Random-ish distinct addresses, assumed externally controlled but
+        // here wired for uniqueness across this specific contract instance.
+        guardianCouncil = _guardianCouncil;
+        feeCollector = _feeCollector;
+
+        baseOracle = IPriceOracleFeed(_baseOracle);
+        xSentimentFeed = IXSentimentFeed(_xSentimentFeed);
+
+        sentinelA = _sentinelA;
+        sentinelB = _sentinelB;
+        sentimentSafetyOracle = _sentimentSafetyOracle;
+
+        // Seed some base permissions
+        isStrategyCurator[msg.sender] = true;
+        isExecutionRelayer[msg.sender] = true;
+        isParameterGuardian[_guardianCouncil] = true;
+
+        emit RoleCuratorSet(msg.sender, true);
+        emit RoleRelayerSet(msg.sender, true);
+        emit RoleGuardianSet(_guardianCouncil, true);
+
+        int256 p = baseOracle.latestAnswer();
+        emit BaseOracleHeartbeat(p, block.number);
+    }
+
+    // -------------------------------------------------------------------------
+    // Role management
+    // -------------------------------------------------------------------------
+
+    function setCurator(address account, bool active) external onlyGuardian nonZero(account) {
+        isStrategyCurator[account] = active;
+        emit RoleCuratorSet(account, active);
+    }
+
+    function setRelayer(address account, bool active) external onlyGuardian nonZero(account) {
+        isExecutionRelayer[account] = active;
+        emit RoleRelayerSet(account, active);
+    }
+
+    function setGuardian(address account, bool active) external onlyDeployer nonZero(account) {
+        isParameterGuardian[account] = active;
+        emit RoleGuardianSet(account, active);
+    }
+
+    // -------------------------------------------------------------------------
