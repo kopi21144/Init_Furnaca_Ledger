@@ -268,3 +268,57 @@ contract Init_Furnaca {
     }
 
     // -------------------------------------------------------------------------
+    // Strategy helpers
+    // -------------------------------------------------------------------------
+
+    function _deriveStrategyId(
+        address owner,
+        address assetIn,
+        address assetOut,
+        bytes32 primaryTopic,
+        uint48 createdAt
+    ) internal pure returns (bytes32) {
+        return keccak256(
+            abi.encodePacked(
+                SOCIAL_TREND_DOMAIN,
+                owner,
+                assetIn,
+                assetOut,
+                primaryTopic,
+                createdAt
+            )
+        );
+    }
+
+    function getStrategyCount() external view returns (uint256) {
+        return strategyIds.length;
+    }
+
+    // -------------------------------------------------------------------------
+    // Strategy registration
+    // -------------------------------------------------------------------------
+
+    function registerStrategy(
+        address assetIn,
+        address assetOut,
+        address executor,
+        bytes32 primaryTopic,
+        bytes32 secondaryTopic,
+        uint16 minTrendScore,
+        uint16 maxTrendScore,
+        uint16 minOracleDriftBps,
+        uint16 maxOracleDriftBps,
+        uint16 baseFeeBps,
+        uint16 curatorFeeBps,
+        uint32 coolDownBlocks,
+        uint32 expiryBlock
+    ) external onlyCurator nonZero(assetIn) nonZero(assetOut) nonZero(executor) returns (bytes32) {
+        if (minTrendScore >= maxTrendScore) revert InitFurnaca_InvalidConfig();
+        if (minOracleDriftBps == 0 || minOracleDriftBps >= maxOracleDriftBps) {
+            revert InitFurnaca_InvalidConfig();
+        }
+        if (baseFeeBps > 1500 || curatorFeeBps > 1500) revert InitFurnaca_InvalidFee();
+
+        uint48 createdAt = uint48(block.timestamp);
+        bytes32 id = _deriveStrategyId(msg.sender, assetIn, assetOut, primaryTopic, createdAt);
+        if (strategies[id].owner != address(0)) revert InitFurnaca_StrategyExists();
