@@ -322,3 +322,57 @@ contract Init_Furnaca {
         uint48 createdAt = uint48(block.timestamp);
         bytes32 id = _deriveStrategyId(msg.sender, assetIn, assetOut, primaryTopic, createdAt);
         if (strategies[id].owner != address(0)) revert InitFurnaca_StrategyExists();
+
+        StrategyConfig memory cfg = StrategyConfig({
+            owner: msg.sender,
+            assetIn: assetIn,
+            assetOut: assetOut,
+            executor: executor,
+            primaryTopic: primaryTopic,
+            secondaryTopic: secondaryTopic,
+            minTrendScore: minTrendScore,
+            maxTrendScore: maxTrendScore,
+            minOracleDriftBps: minOracleDriftBps,
+            maxOracleDriftBps: maxOracleDriftBps,
+            baseFeeBps: baseFeeBps,
+            curatorFeeBps: curatorFeeBps,
+            coolDownBlocks: coolDownBlocks,
+            expiryBlock: expiryBlock,
+            createdAt: createdAt,
+            paused: false
+        });
+
+        strategies[id] = cfg;
+        strategyRuntime[id].lastRecordedSentiment = 0;
+        strategyRuntime[id].lastRecordedPrice = 0;
+        strategyRuntime[id].lastExecutedAtBlock = 0;
+        strategyRuntime[id].totalExecutions = 0;
+        strategyRuntime[id].cumulativeVolumeIn = 0;
+        strategyRuntime[id].cumulativeVolumeOut = 0;
+
+        strategyIds.push(id);
+
+        emit StrategyRegistered(
+            id,
+            msg.sender,
+            assetIn,
+            assetOut,
+            executor,
+            primaryTopic
+        );
+
+        return id;
+    }
+
+    // -------------------------------------------------------------------------
+    // Strategy tuning / pausing
+    // -------------------------------------------------------------------------
+
+    function pauseStrategy(bytes32 strategyId, bool paused) external {
+        StrategyConfig storage cfg = strategies[strategyId];
+        if (cfg.owner == address(0)) revert InitFurnaca_StrategyUnknown();
+        if (msg.sender != cfg.owner && !isParameterGuardian[msg.sender]) {
+            revert InitFurnaca_Unauthorized();
+        }
+        cfg.paused = paused;
+        emit StrategyPaused(strategyId, msg.sender != cfg.owner);
