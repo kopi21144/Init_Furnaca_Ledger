@@ -430,3 +430,57 @@ contract Init_Furnaca {
     // -------------------------------------------------------------------------
     // Sentiment and oracle helpers
     // -------------------------------------------------------------------------
+
+    function currentSentiment(bytes32 topic) public view returns (int256, uint256) {
+        int256 score = xSentimentFeed.latestSentimentScore(topic);
+        uint256 ts = xSentimentFeed.lastUpdatedAt(topic);
+        return (score, ts);
+    }
+
+    function currentBasePrice() public view returns (int256) {
+        return baseOracle.latestAnswer();
+    }
+
+    function _checkSentimentBand(
+        StrategyConfig memory cfg,
+        int256 score
+    ) internal pure {
+        if (score < int256(uint256(cfg.minTrendScore))) revert InitFurnaca_TrendOutOfBand();
+        if (score > int256(uint256(cfg.maxTrendScore))) revert InitFurnaca_TrendOutOfBand();
+    }
+
+    function _checkOracleDrift(
+        StrategyConfig memory cfg,
+        int256 oldPrice,
+        int256 newPrice
+    ) internal pure {
+        if (oldPrice == 0 || newPrice == 0) return;
+
+        int256 diff = newPrice - oldPrice;
+        if (diff < 0) diff = -diff;
+        uint256 driftBps = uint256(diff) * 10_000 / uint256(oldPrice < 0 ? -oldPrice : oldPrice);
+
+        if (driftBps < cfg.minOracleDriftBps) revert InitFurnaca_OracleDriftTooLow();
+        if (driftBps > cfg.maxOracleDriftBps) revert InitFurnaca_OracleDriftTooHigh();
+    }
+
+    // -------------------------------------------------------------------------
+    // Execution
+    // -------------------------------------------------------------------------
+
+    function previewExecution(
+        bytes32 strategyId,
+        uint256 volumeIn
+    )
+        external
+        view
+        returns (
+            int256 sentiment,
+            int256 price,
+            uint256 baseFee,
+            uint256 curatorFee,
+            uint256 netVolumeOut
+        )
+    {
+        StrategyConfig memory cfg = strategies[strategyId];
+        if (cfg.owner == address(0)) revert InitFurnaca_StrategyUnknown();
