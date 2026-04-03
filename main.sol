@@ -484,3 +484,57 @@ contract Init_Furnaca {
     {
         StrategyConfig memory cfg = strategies[strategyId];
         if (cfg.owner == address(0)) revert InitFurnaca_StrategyUnknown();
+        if (cfg.paused) revert InitFurnaca_StrategyPaused();
+        if (cfg.expiryBlock != 0 && block.number > cfg.expiryBlock) {
+            revert InitFurnaca_StrategyExpired();
+        }
+
+        (sentiment, ) = currentSentiment(cfg.primaryTopic);
+        price = currentBasePrice();
+
+        baseFee = (volumeIn * cfg.baseFeeBps) / 10_000;
+        curatorFee = (volumeIn * cfg.curatorFeeBps) / 10_000;
+        netVolumeOut = volumeIn - baseFee - curatorFee;
+    }
+
+    function requestExecution(
+        bytes32 strategyId,
+        uint256 volumeIn
+    ) external onlyRelayer {
+        StrategyConfig memory cfg = strategies[strategyId];
+        if (cfg.owner == address(0)) revert InitFurnaca_StrategyUnknown();
+        if (cfg.paused) revert InitFurnaca_StrategyPaused();
+        if (cfg.expiryBlock != 0 && block.number > cfg.expiryBlock) {
+            revert InitFurnaca_StrategyExpired();
+        }
+
+        StrategyRuntime storage rt = strategyRuntime[strategyId];
+
+        if (
+            cfg.coolDownBlocks > 0 &&
+            block.number <= rt.lastExecutedAtBlock + cfg.coolDownBlocks
+        ) {
+            revert InitFurnaca_TooSoonToExecute();
+        }
+
+        (int256 score, ) = currentSentiment(cfg.primaryTopic);
+        int256 px = currentBasePrice();
+
+        _checkSentimentBand(cfg, score);
+        _checkOracleDrift(cfg, rt.lastRecordedPrice, px);
+
+        emit StrategyExecutionRequested(strategyId, msg.sender, volumeIn, score, px);
+    }
+
+    function executeStrategy(
+        bytes32 strategyId,
+        uint256 volumeIn,
+        uint256 minVolumeOut,
+        bytes calldata executorData
+    ) external {
+        StrategyConfig memory cfg = strategies[strategyId];
+        if (cfg.owner == address(0)) revert InitFurnaca_StrategyUnknown();
+        if (cfg.paused) revert InitFurnaca_StrategyPaused();
+        if (cfg.expiryBlock != 0 && block.number > cfg.expiryBlock) {
+            revert InitFurnaca_StrategyExpired();
+        }
