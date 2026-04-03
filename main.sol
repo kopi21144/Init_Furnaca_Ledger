@@ -376,3 +376,57 @@ contract Init_Furnaca {
         }
         cfg.paused = paused;
         emit StrategyPaused(strategyId, msg.sender != cfg.owner);
+    }
+
+    function setStrategyExpiry(bytes32 strategyId, uint32 newExpiryBlock) external onlyGuardian {
+        StrategyConfig storage cfg = strategies[strategyId];
+        if (cfg.owner == address(0)) revert InitFurnaca_StrategyUnknown();
+        cfg.expiryBlock = newExpiryBlock;
+        emit StrategyExpired(strategyId, newExpiryBlock);
+    }
+
+    function updateStrategyFees(
+        bytes32 strategyId,
+        uint16 newBaseFeeBps,
+        uint16 newCuratorFeeBps
+    ) external onlyGuardian {
+        StrategyConfig storage cfg = strategies[strategyId];
+        if (cfg.owner == address(0)) revert InitFurnaca_StrategyUnknown();
+        if (newBaseFeeBps > 1500 || newCuratorFeeBps > 1500) revert InitFurnaca_InvalidFee();
+
+        cfg.baseFeeBps = newBaseFeeBps;
+        cfg.curatorFeeBps = newCuratorFeeBps;
+
+        emit StrategyUpdated(
+            strategyId,
+            msg.sender,
+            keccak256("fees"),
+            abi.encode(newBaseFeeBps, newCuratorFeeBps)
+        );
+    }
+
+    function updateStrategyTopics(
+        bytes32 strategyId,
+        bytes32 newPrimaryTopic,
+        bytes32 newSecondaryTopic
+    ) external {
+        StrategyConfig storage cfg = strategies[strategyId];
+        if (cfg.owner == address(0)) revert InitFurnaca_StrategyUnknown();
+        if (msg.sender != cfg.owner && !isStrategyCurator[msg.sender]) {
+            revert InitFurnaca_Unauthorized();
+        }
+
+        cfg.primaryTopic = newPrimaryTopic;
+        cfg.secondaryTopic = newSecondaryTopic;
+
+        emit StrategyUpdated(
+            strategyId,
+            msg.sender,
+            keccak256("topics"),
+            abi.encode(newPrimaryTopic, newSecondaryTopic)
+        );
+    }
+
+    // -------------------------------------------------------------------------
+    // Sentiment and oracle helpers
+    // -------------------------------------------------------------------------
