@@ -538,3 +538,57 @@ contract Init_Furnaca {
         if (cfg.expiryBlock != 0 && block.number > cfg.expiryBlock) {
             revert InitFurnaca_StrategyExpired();
         }
+        if (msg.sender != cfg.executor) revert InitFurnaca_Unauthorized();
+
+        StrategyRuntime storage rt = strategyRuntime[strategyId];
+
+        if (
+            cfg.coolDownBlocks > 0 &&
+            block.number <= rt.lastExecutedAtBlock + cfg.coolDownBlocks
+        ) {
+            revert InitFurnaca_TooSoonToExecute();
+        }
+
+        (int256 score, ) = currentSentiment(cfg.primaryTopic);
+        int256 px = currentBasePrice();
+
+        _checkSentimentBand(cfg, score);
+        _checkOracleDrift(cfg, rt.lastRecordedPrice, px);
+
+        IMinimalERC20 tokenIn = IMinimalERC20(cfg.assetIn);
+        IMinimalERC20 tokenOut = IMinimalERC20(cfg.assetOut);
+
+        uint256 balBefore = tokenOut.balanceOf(address(this));
+
+        if (!tokenIn.transferFrom(cfg.owner, address(this), volumeIn)) {
+            revert InitFurnaca_AssetMismatch();
+        }
+
+        (bool ok, ) = cfg.executor.call(executorData);
+        require(ok, "InitFurnaca:executor-failed");
+
+        uint256 balAfter = tokenOut.balanceOf(address(this));
+        uint256 grossOut = balAfter - balBefore;
+        if (grossOut < minVolumeOut) revert InitFurnaca_AssetMismatch();
+
+        uint256 baseFee = (grossOut * cfg.baseFeeBps) / 10_000;
+        uint256 curatorFee = (grossOut * cfg.curatorFeeBps) / 10_000;
+        uint256 netOut = grossOut - baseFee - curatorFee;
+
+        if (baseFee > 0) {
+            require(tokenOut.transfer(feeCollector, baseFee), "InitFurnaca:fee-transfer");
+        }
+        if (curatorFee > 0) {
+            require(tokenOut.transfer(cfg.owner, curatorFee), "InitFurnaca:curator-transfer");
+        }
+        require(tokenOut.transfer(cfg.owner, netOut), "InitFurnaca:owner-transfer");
+
+        rt.lastExecutedAtBlock = block.number;
+        rt.totalExecutions += 1;
+        rt.lastRecordedSentiment = score;
+        rt.lastRecordedPrice = px;
+        rt.cumulativeVolumeIn += volumeIn;
+        rt.cumulativeVolumeOut += grossOut;
+
+        emit StrategyExecuted(
+            strategyId,
