@@ -592,3 +592,56 @@ contract Init_Furnaca {
 
         emit StrategyExecuted(
             strategyId,
+            msg.sender,
+            volumeIn,
+            grossOut,
+            baseFee,
+            curatorFee,
+            score,
+            px
+        );
+    }
+
+    // -------------------------------------------------------------------------
+    // Guardian council meta-signals
+    // -------------------------------------------------------------------------
+
+    function guardianSignal(bytes32 reference, uint256 weight) external onlyGuardian {
+        emit GuardianCouncilSignal(reference, weight, block.number);
+    }
+
+    function guardianTripSentiment(bytes32 topic, int256 observedScore) external {
+        if (msg.sender != sentimentSafetyOracle && msg.sender != sentinelA && msg.sender != sentinelB) {
+            revert InitFurnaca_Unauthorized();
+        }
+        emit SentimentSafetyTrip(topic, observedScore, block.number);
+    }
+
+    // -------------------------------------------------------------------------
+    // Misc views
+    // -------------------------------------------------------------------------
+
+    function strategyStatic(
+        bytes32 strategyId
+    ) external view returns (StrategyConfig memory cfg, StrategyRuntime memory rt) {
+        cfg = strategies[strategyId];
+        if (cfg.owner == address(0)) revert InitFurnaca_StrategyUnknown();
+        rt = strategyRuntime[strategyId];
+    }
+
+    function batchStrategies(
+        uint256 offset,
+        uint256 limit
+    ) external view returns (bytes32[] memory ids) {
+        uint256 len = strategyIds.length;
+        if (offset >= len) return new bytes32[](0);
+
+        uint256 end = offset + limit;
+        if (end > len) end = len;
+
+        ids = new bytes32[](end - offset);
+        for (uint256 i = offset; i < end; i++) {
+            ids[i - offset] = strategyIds[i];
+        }
+    }
+}
